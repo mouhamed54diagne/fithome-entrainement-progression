@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Test connection doc used to verify firestore connectivity
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // User profile document
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && incoming().uid == userId;
+      allow update: if isOwner(userId)
+        && isValidId(userId);
+      allow delete: if false;
+
+      // Workout logs subcollection
+      match /workouts/{workoutId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(workoutId)
+          && incoming().userId == userId;
+        allow update: if isOwner(userId)
+          && isValidId(workoutId);
+        allow delete: if isOwner(userId);
+      }
+
+      // Calendar progression subcollection
+      match /calendar/{dateId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(dateId)
+          && incoming().userId == userId;
+        allow update: if isOwner(userId)
+          && isValidId(dateId);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
